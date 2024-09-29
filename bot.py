@@ -96,12 +96,14 @@ def callback_query(call):
             bot.send_message(call.message.chat.id, "Не удалось получить видео. Попробуйте снова.")
 
 def start_bot():
+    bot.delete_webhook()
     while True:
         try:
             bot.infinity_polling(timeout=10, long_polling_timeout=5)
         except Exception as e:
             print(f"Ошибка: {e}")
             time.sleep(5)
+
 
 if __name__ == '__main__':
     start_bot()
