@@ -95,7 +95,7 @@ async def process_webhook(request: Request):
         send_video_options(update.message.chat.id, query, videos, next_page_token)
 
     if update.callback_query:
-        bot.process_new_callback_query(update.callback_query)
+        bot.process_new_callback_query([update.callback_query])
 
     return {"status": "ok"}
 
