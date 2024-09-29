@@ -1,16 +1,12 @@
 import os
 import yt_dlp
 import telebot
-import logging
 from googleapiclient.discovery import build
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 
 load_dotenv()
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 bot_token = os.getenv('BOT_TOKEN')
 youtube_api_key = os.getenv('YOUTUBE_API_KEY')
@@ -69,21 +65,18 @@ def get_video_url(youtube_url):
             video_url = info_dict.get('url', None)
             return video_url
     except Exception as e:
-        logger.error(f"Ошибка при получении URL: {e}")
+        print(f"Ошибка: {e}")
         return None
 
 @app.post("/webhook")
 async def process_webhook(request: Request):
     data = await request.json()
-    logger.info(f"Получен Webhook с данными: {data}")
     update = telebot.types.Update.de_json(data)
 
     if update.message:
-        logger.info(f"Обработка текстового сообщения: {update.message.text}")
-        bot.process_new_messages([update.message])
-    if update.callback_query:
-        logger.info(f"Обработка callback-запроса: {update.callback_query.data}")
-        bot.process_new_callback_query([update.callback_query])
+        query = update.message.text
+        videos, next_page_token = search_youtube(query)
+        send_video_options(update.message.chat.id, query, videos, next_page_token)
 
     return {"status": "ok"}
 
@@ -91,9 +84,3 @@ async def process_webhook(request: Request):
 def index():
     return {"message": "Hello World"}
 
-@app.on_event("startup")
-async def on_startup():
-    webhook_url = os.getenv('WEBHOOK_URL')
-    bot.remove_webhook()
-    bot.set_webhook(url=webhook_url)
-    logger.info(f"Webhook установлен на {webhook_url}")

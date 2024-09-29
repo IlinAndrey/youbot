@@ -1,7 +1,5 @@
 fastapi
 uvicorn
-python-telegram-bot
-pydantic
-google-api-python-client
+telebot
 yt-dlp
-python-dotenv
+google-api-python-client
