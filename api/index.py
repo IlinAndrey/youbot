@@ -1,25 +1,20 @@
 import os
 import yt_dlp
+import telebot
 from googleapiclient.discovery import build
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from dotenv import load_dotenv
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler
 
 load_dotenv()
 
 bot_token = os.getenv('BOT_TOKEN')
 youtube_api_key = os.getenv('YOUTUBE_API_KEY')
 
-bot = Bot(token=bot_token)
+bot = telebot.TeleBot(bot_token)
 youtube = build('youtube', 'v3', developerKey=youtube_api_key)
-app = FastAPI()
 
-class TelegramWebhook(BaseModel):
-    update_id: int
-    message: dict
+app = FastAPI()
 
 def search_youtube(query, max_results=4, page_token=None):
     search_response = youtube.search().list(
@@ -42,6 +37,23 @@ def search_youtube(query, max_results=4, page_token=None):
     next_page_token = search_response.get('nextPageToken', None)
     return videos, next_page_token
 
+def send_video_options(chat_id, query, videos, next_page_token):
+    markup = InlineKeyboardMarkup()
+
+    for index, video in enumerate(videos):
+        button_text = f"{index + 1}. {video['title']}"
+        video_button = InlineKeyboardButton(button_text, callback_data=video['video_id'])
+        markup.add(video_button)
+
+    if next_page_token:
+        next_button = InlineKeyboardButton("Следующие 4 видео", callback_data=f"next_{next_page_token}_{query}")
+        markup.add(next_button)
+
+    for video in videos:
+        bot.send_photo(chat_id, video['thumbnail'], caption=video['title'])
+
+    bot.send_message(chat_id, "Выберите видео:", reply_markup=markup)
+
 def get_video_url(youtube_url):
     try:
         ydl_opts = {
@@ -57,38 +69,18 @@ def get_video_url(youtube_url):
         return None
 
 @app.post("/webhook")
-async def webhook(webhook_data: TelegramWebhook):
-    update = Update.de_json(webhook_data.dict(), bot)
+async def process_webhook(request: Request):
+    data = await request.json()
+    update = telebot.types.Update.de_json(data)
 
     if update.message:
-        chat_id = update.message.chat.id
         query = update.message.text
-
         videos, next_page_token = search_youtube(query)
-        markup = build_inline_keyboard(videos, next_page_token, query)
+        send_video_options(update.message.chat.id, query, videos, next_page_token)
 
-        for video in videos:
-            bot.send_photo(chat_id, video['thumbnail'], caption=video['title'])
-        
-        bot.send_message(chat_id, "Выберите видео:", reply_markup=markup)
-
-    return JSONResponse(content={"message": "ok"})
-
-def build_inline_keyboard(videos, next_page_token, query):
-    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-    markup = InlineKeyboardMarkup()
-
-    for index, video in enumerate(videos):
-        button_text = f"{index + 1}. {video['title']}"
-        video_button = InlineKeyboardButton(button_text, callback_data=video['video_id'])
-        markup.add(video_button)
-
-    if next_page_token:
-        next_button = InlineKeyboardButton("Следующие 4 видео", callback_data=f"next_{next_page_token}_{query}")
-        markup.add(next_button)
-
-    return markup
+    return {"status": "ok"}
 
 @app.get("/")
-async def index():
+def index():
     return {"message": "Hello World"}
+
