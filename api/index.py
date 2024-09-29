@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -76,7 +77,19 @@ async def process_webhook(request: Request):
     if update.message:
         query = update.message.text
         videos, next_page_token = search_youtube(query)
-        send_video_options(update.message.chat.id, query, videos, next_page_token)
+        await asyncio.to_thread(send_video_options, update.message.chat.id, query, videos, next_page_token)
+
+    elif update.callback_query:
+        callback_data = update.callback_query.data
+        if callback_data.startswith("next_"):
+            _, next_page_token, query = callback_data.split("_")
+            videos, new_next_page_token = search_youtube(query, page_token=next_page_token)
+            await asyncio.to_thread(send_video_options, update.callback_query.message.chat.id, query, videos, new_next_page_token)
+        else:
+            video_id = callback_data
+            youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+            video_url = await asyncio.to_thread(get_video_url, youtube_url)
+            await asyncio.to_thread(bot.send_message, update.callback_query.message.chat.id, f"Вот ссылка на видео: {video_url}")
 
     return {"status": "ok"}
 
