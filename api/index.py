@@ -5,18 +5,20 @@ from googleapiclient.discovery import build
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
-import asyncio
 
 load_dotenv()
 
+# Токены и ключи
 bot_token = os.getenv('BOT_TOKEN')
 youtube_api_key = os.getenv('YOUTUBE_API_KEY')
 
+# Инициализация бота и YouTube API
 bot = telebot.TeleBot(bot_token)
 youtube = build('youtube', 'v3', developerKey=youtube_api_key)
 
 app = FastAPI()
 
+# Функция для поиска видео на YouTube
 def search_youtube(query, max_results=4, page_token=None):
     search_response = youtube.search().list(
         q=query,
@@ -38,7 +40,8 @@ def search_youtube(query, max_results=4, page_token=None):
     next_page_token = search_response.get('nextPageToken', None)
     return videos, next_page_token
 
-def send_video_options(chat_id, query, videos, next_page_token):
+# Отправка видео в виде кнопок с изображениями
+def send_video_options(chat_id, videos, next_page_token):
     markup = InlineKeyboardMarkup()
 
     for index, video in enumerate(videos):
@@ -47,7 +50,7 @@ def send_video_options(chat_id, query, videos, next_page_token):
         markup.add(video_button)
 
     if next_page_token:
-        next_button = InlineKeyboardButton("Следующие 4 видео", callback_data=f"next_{next_page_token}_{query}")
+        next_button = InlineKeyboardButton("Следующие 4 видео", callback_data=f"next_{next_page_token}")
         markup.add(next_button)
 
     for video in videos:
@@ -55,6 +58,7 @@ def send_video_options(chat_id, query, videos, next_page_token):
 
     bot.send_message(chat_id, "Выберите видео:", reply_markup=markup)
 
+# Получение ссылки на видео через yt-dlp
 def get_video_url(youtube_url):
     try:
         ydl_opts = {
@@ -77,23 +81,26 @@ async def process_webhook(request: Request):
     if update.message:
         query = update.message.text
         videos, next_page_token = search_youtube(query)
-        await asyncio.to_thread(send_video_options, update.message.chat.id, query, videos, next_page_token)
+        send_video_options(update.message.chat.id, videos, next_page_token)
 
     elif update.callback_query:
         callback_data = update.callback_query.data
         if callback_data.startswith("next_"):
-            _, next_page_token, query = callback_data.split("_")
+            _, next_page_token, query = callback_data.split('_', 2)
             videos, new_next_page_token = search_youtube(query, page_token=next_page_token)
-            await asyncio.to_thread(send_video_options, update.callback_query.message.chat.id, query, videos, new_next_page_token)
+            send_video_options(update.callback_query.message.chat.id, videos, new_next_page_token)
         else:
             video_id = callback_data
             youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-            video_url = await asyncio.to_thread(get_video_url, youtube_url)
-            await asyncio.to_thread(bot.send_message, update.callback_query.message.chat.id, f"Вот ссылка на видео: {video_url}")
+            video_url = get_video_url(youtube_url)
+
+            if video_url:
+                bot.send_message(update.callback_query.message.chat.id, f"Видео найдено. Вот ссылка на видео: {video_url}")
+            else:
+                bot.send_message(update.callback_query.message.chat.id, "Не удалось получить видео. Попробуйте снова.")
 
     return {"status": "ok"}
 
 @app.get("/")
 def index():
     return {"message": "Hello World"}
-
