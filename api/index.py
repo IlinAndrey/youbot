@@ -1,11 +1,15 @@
+import os
+import time
 import telebot
 import yt_dlp
 from googleapiclient.discovery import build
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-import time
+from dotenv import load_dotenv
 
-bot_token = '7553396600:AAHTwNczEj37Qx02KFADRSNpP_nrj0hySqs'
-youtube_api_key = 'AIzaSyCDsHoy2T0pvbNzOo-hxEDxIMIeVAxqLOI'
+load_dotenv()
+
+bot_token = os.getenv('BOT_TOKEN')
+youtube_api_key = os.getenv('YOUTUBE_API_KEY')
 
 bot = telebot.TeleBot(bot_token)
 youtube = build('youtube', 'v3', developerKey=youtube_api_key)
@@ -98,4 +102,3 @@ def start_bot():
 
 if __name__ == '__main__':
     start_bot()
-
