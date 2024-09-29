@@ -1,12 +1,16 @@
 import os
 import yt_dlp
 import telebot
+import logging
 from googleapiclient.discovery import build
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 bot_token = os.getenv('BOT_TOKEN')
 youtube_api_key = os.getenv('YOUTUBE_API_KEY')
@@ -70,9 +74,14 @@ def get_video_url(youtube_url):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    query = message.text
-    videos, next_page_token = search_youtube(query)
-    send_video_options(message.chat.id, query, videos, next_page_token)
+    try:
+        query = message.text
+        logger.info(f"Получен запрос на поиск видео: {query}")
+        videos, next_page_token = search_youtube(query)
+        logger.info(f"Найдено {len(videos)} видео по запросу: {query}")
+        send_video_options(message.chat.id, query, videos, next_page_token)
+    except Exception as e:
+        logger.error(f"Ошибка в обработке сообщения: {e}")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -93,20 +102,27 @@ def callback_query(call):
             else:
                 bot.send_message(call.message.chat.id, "Не удалось получить видео. Попробуйте снова.")
     except Exception as e:
-        print(f"Ошибка в callback: {e}")
+        logger.error(f"Ошибка в callback: {e}")
         bot.send_message(call.message.chat.id, "Произошла ошибка при обработке запроса.")
 
 @app.post("/webhook")
 async def process_webhook(request: Request):
-    data = await request.json()
-    update = telebot.types.Update.de_json(data)
+    try:
+        data = await request.json()
+        logger.info(f"Получен Webhook с данными: {data}")
+        update = telebot.types.Update.de_json(data)
 
-    if update.message:
-        bot.process_new_messages([update.message])
-    if update.callback_query:
-        bot.process_new_callback_query([update.callback_query])
+        if update.message:
+            logger.info(f"Обработка текстового сообщения: {update.message.text}")
+            bot.process_new_messages([update.message])
+        if update.callback_query:
+            logger.info(f"Обработка callback-запроса: {update.callback_query.data}")
+            bot.process_new_callback_query([update.callback_query])
 
-    return {"status": "ok"}
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Ошибка в Webhook: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/")
 def index():
@@ -117,3 +133,4 @@ async def on_startup():
     webhook_url = os.getenv('WEBHOOK_URL')
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
+    logger.info(f"Webhook установлен на {webhook_url}")
