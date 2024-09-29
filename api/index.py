@@ -68,6 +68,12 @@ def get_video_url(youtube_url):
         print(f"Ошибка: {e}")
         return None
 
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    query = message.text
+    videos, next_page_token = search_youtube(query)
+    send_video_options(message.chat.id, query, videos, next_page_token)
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     try:
@@ -96,12 +102,9 @@ async def process_webhook(request: Request):
     update = telebot.types.Update.de_json(data)
 
     if update.message:
-        query = update.message.text
-        videos, next_page_token = search_youtube(query)
-        send_video_options(update.message.chat.id, query, videos, next_page_token)
-
+        bot.process_new_messages([update.message])
     if update.callback_query:
-        bot.process_new_callback_query([update.callback_query])  # Обрабатываем callback
+        bot.process_new_callback_query([update.callback_query])
 
     return {"status": "ok"}
 
