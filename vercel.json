@@ -2,14 +2,15 @@
     "version": 2,
     "builds": [
         {
-            "src": "api/index.py",
-            "use": "@vercel/python"
+            "src": "src/index.mjs",
+            "use": "@vercel/node"
         }
     ],
     "routes": [
         {
-            "src": "/(.*)",
-            "dest": "/api/index.py"
+            "src": "/webhook",
+            "methods": ["POST"],
+            "dest": "src/index.mjs"
         }
     ]
 }
