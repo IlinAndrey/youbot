@@ -70,19 +70,25 @@ def get_video_url(youtube_url):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    if call.data.startswith('next_'):
-        _, next_page_token, query = call.data.split('_', 2)  # Получаем токен страницы и исходный запрос
-        videos, next_page_token = search_youtube(query, page_token=next_page_token)
-        send_video_options(call.message.chat.id, query, videos, next_page_token)
-    else:
-        video_id = call.data
-        youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-        video_url = get_video_url(youtube_url)
+    try:
+        bot.answer_callback_query(call.id)
 
-        if video_url:
-            bot.send_message(call.message.chat.id, f"Видео найдено. Вот ссылка на видео: {video_url}")
+        if call.data.startswith('next_'):
+            _, next_page_token, query = call.data.split('_', 2)
+            videos, next_page_token = search_youtube(query, page_token=next_page_token)
+            send_video_options(call.message.chat.id, query, videos, next_page_token)
         else:
-            bot.send_message(call.message.chat.id, "Не удалось получить видео. Попробуйте снова.")
+            video_id = call.data
+            youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+            video_url = get_video_url(youtube_url)
+
+            if video_url:
+                bot.send_message(call.message.chat.id, f"Видео найдено. Вот ссылка на видео: {video_url}")
+            else:
+                bot.send_message(call.message.chat.id, "Не удалось получить видео. Попробуйте снова.")
+    except Exception as e:
+        print(f"Ошибка в callback: {e}")
+        bot.send_message(call.message.chat.id, "Произошла ошибка при обработке запроса.")
 
 @app.post("/webhook")
 async def process_webhook(request: Request):
@@ -95,7 +101,7 @@ async def process_webhook(request: Request):
         send_video_options(update.message.chat.id, query, videos, next_page_token)
 
     if update.callback_query:
-        bot.process_new_callback_query([update.callback_query])
+        bot.process_new_callback_query([update.callback_query])  # Обрабатываем callback
 
     return {"status": "ok"}
 
