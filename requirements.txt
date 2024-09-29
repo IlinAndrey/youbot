@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+telebot
+yt-dlp
+google-api-python-client
